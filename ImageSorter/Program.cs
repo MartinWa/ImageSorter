@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using ExifLib;
@@ -12,18 +13,14 @@ namespace ImageSorter
         //   private const string ResultFolder = @"F:\sorted";
         private const string ResultFolder = @"F:\test\sorted";
 
-        private const string FolderFormat = "{0}-{1}";
-
         private static void Main()
         {
             var files = Directory.EnumerateFiles(OnedriveFolder, "*.*", SearchOption.AllDirectories).ToArray();
-            //   .Where(s => s.EndsWith(".jpeg", StringComparison.OrdinalIgnoreCase) || s.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase) || s.EndsWith(".mov", StringComparison.OrdinalIgnoreCase))
-            //  .ToArray();
             var i = 0;
             var total = files.Length;
             foreach (var file in files)
             {
-                if (i % 100 == 0)
+                if (i%100 == 0)
                 {
                     Console.WriteLine($"Copying file {i + 1}/{total} - {file}");
                 }
@@ -37,6 +34,8 @@ namespace ImageSorter
                 {
                     case ".jpg":
                     case ".jpeg":
+                        try
+                        {
                         using (var exifReader = new ExifReader(file))
                         {
                             if (!exifReader.GetTagValue(ExifTags.DateTimeDigitized, out dateTaken))
@@ -45,24 +44,43 @@ namespace ImageSorter
                                 dateTaken = File.GetLastWriteTime(file);
                             }
                         }
+
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"{ex.Message} from file {file}");
+                            dateTaken = File.GetLastWriteTime(file);
+                        }
                         break;
                     default:
                         dateTaken = File.GetLastWriteTime(file);
                         break;
                 }
-                var folderName = GetFolderName(dateTaken);
-                var formattableString = $"{ResultFolder}\\{folderName}";
-                Directory.CreateDirectory(formattableString);
+                var folderName = CreateFolderName(dateTaken);
+                Directory.CreateDirectory(folderName);
                 var newFileName = $"{Guid.NewGuid():N}{extension}";
-                var destination = Path.Combine(formattableString, newFileName);
+                var destination = Path.Combine(folderName, newFileName);
                 File.Copy(file, destination);
                 i++;
             }
         }
 
-        private static string GetFolderName(DateTime dateTime)
+        private static string CreateFolderName(DateTime dateTime)
         {
-            return string.Format(FolderFormat, dateTime.Year, dateTime.ToString("MM"));
+            var month = dateTime.ToString("MMMM", CultureInfo.CreateSpecificCulture("sv"));
+            var monthFirstCap = FirstLetterToUpper(month);
+            return $"{ResultFolder}\\{dateTime.Year}\\{monthFirstCap}";
+        }
+
+        private static string FirstLetterToUpper(string str)
+        {
+            if (str == null)
+                return null;
+
+            if (str.Length > 1)
+                return char.ToUpper(str[0]) + str.Substring(1);
+
+            return str.ToUpper();
         }
     }
 }
