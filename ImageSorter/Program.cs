@@ -1,5 +1,6 @@
 ﻿using System;
 using System.IO;
+using System.Linq;
 using ExifLib;
 
 namespace ImageSorter
@@ -15,28 +16,47 @@ namespace ImageSorter
 
         private static void Main()
         {
-            var files = Directory.GetFiles(OnedriveFolder, "*.jpg", SearchOption.AllDirectories);
-            var i = 1;
+            var files = Directory.EnumerateFiles(OnedriveFolder, "*.*", SearchOption.AllDirectories).ToArray();
+            //   .Where(s => s.EndsWith(".jpeg", StringComparison.OrdinalIgnoreCase) || s.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase) || s.EndsWith(".mov", StringComparison.OrdinalIgnoreCase))
+            //  .ToArray();
+            var i = 0;
             var total = files.Length;
             foreach (var file in files)
             {
-                Console.WriteLine($"Copying file {i}/{total} - {file}");
-                using (var exifReader = new ExifReader(file))
+                if (i % 100 == 0)
                 {
-                    DateTime datePictureTaken;
-                    if (!exifReader.GetTagValue(ExifTags.DateTimeDigitized, out datePictureTaken))
-                    {
-                        Console.WriteLine("Can not read EXIF from file");
-                        continue;
-                    }
-                    var folderName = GetFolderName(datePictureTaken);
-                    var formattableString = $"{ResultFolder}\\{folderName}";
-                    Directory.CreateDirectory(formattableString);
-                    var newFileName = $"{Guid.NewGuid():N}.jpg";
-                    var destination = Path.Combine(formattableString, newFileName);
-                    File.Copy(file, destination);
+                    Console.WriteLine($"Copying file {i + 1}/{total} - {file}");
                 }
-            i++;
+                var extension = Path.GetExtension(file)?.ToLower();
+                if (string.IsNullOrEmpty(extension))
+                {
+                    continue;
+                }
+                DateTime dateTaken;
+                switch (extension)
+                {
+                    case ".jpg":
+                    case ".jpeg":
+                        using (var exifReader = new ExifReader(file))
+                        {
+                            if (!exifReader.GetTagValue(ExifTags.DateTimeDigitized, out dateTaken))
+                            {
+                                Console.WriteLine($"Can not read EXIF from file {file}");
+                                dateTaken = File.GetLastWriteTime(file);
+                            }
+                        }
+                        break;
+                    default:
+                        dateTaken = File.GetLastWriteTime(file);
+                        break;
+                }
+                var folderName = GetFolderName(dateTaken);
+                var formattableString = $"{ResultFolder}\\{folderName}";
+                Directory.CreateDirectory(formattableString);
+                var newFileName = $"{Guid.NewGuid():N}{extension}";
+                var destination = Path.Combine(formattableString, newFileName);
+                File.Copy(file, destination);
+                i++;
             }
         }
 
